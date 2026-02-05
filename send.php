@@ -76,4 +76,5 @@ fclose($fp);
 
 // 回傳成功
 header('Content-Type: application/json; charset=utf-8');
+sleep(5);
 echo json_encode(['status' => 'ok']);

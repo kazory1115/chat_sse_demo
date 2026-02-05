@@ -66,7 +66,7 @@ $(function () {
         if (!msg) return;
 
         $.ajax({
-            url: 'send.php',
+            url: 'http://localhost:8080/chat_sse_demo/send.php',
             method: 'POST',
             data: { user: user, message: msg },
             success: function (res) {
@@ -80,7 +80,7 @@ $(function () {
 
     // ====== 2. 接收訊息（用原生 EventSource + SSE） ======
     if (!!window.EventSource) {
-        const source = new EventSource('stream.php');
+        const source = new EventSource('http://localhost:8080/chat_sse_demo/stream.php');
 
         source.onmessage = function (event) {
             // event.data 是後端推來的 JSON 字串
@@ -120,7 +120,7 @@ $(function () {
     // ====== 3. 輪詢時間戳 ======
     function fetchServerTime() {
         $.ajax({
-            url: 'time.php',
+            url: 'http://localhost:8080/chat_sse_demo/time.php',
             method: 'GET',
             dataType: 'json',
             success: function (res) {
