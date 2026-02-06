@@ -1,0 +1,636 @@
+<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="UTF-8" />
+    <title>簡易 SSE 聊天室</title>
+    <script src="./config.js"></script>
+    <link
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;600&family=IBM+Plex+Mono:wght@400;600&family=Noto+Serif+TC:wght@600;700&display=swap"
+      rel="stylesheet"
+    />
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <style>
+      :root {
+        --bg-1: #f4f1ec;
+        --bg-2: #efe9e1;
+        --ink: #1e1c18;
+        --muted: #6f6a61;
+        --card: #ffffff;
+        --accent: #2f5d62;
+        --accent-2: #e4b363;
+        --border: #ded7cc;
+        --shadow: 0 10px 30px rgba(30, 28, 24, 0.12);
+        --font-title: 'Noto Serif TC', serif;
+        --font-body: 'IBM Plex Sans', sans-serif;
+        --input-text: var(--ink);
+        --bubble-bg: #fbf8f3;
+        --bubble-border: #e6ddcf;
+        --input-bg: #ffffff;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        color: var(--ink);
+        font-family: var(--font-body);
+        background: radial-gradient(
+            1200px 600px at 80% -10%,
+            #ffffff 0%,
+            var(--bg-1) 50%,
+            var(--bg-2) 100%
+          ),
+          linear-gradient(120deg, #f7f2ea 0%, #eee5d9 100%);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 32px 16px;
+      }
+
+      .app {
+        width: min(980px, 100%);
+        background: rgba(255, 255, 255, 0.9);
+        border: 1px solid var(--border);
+        border-radius: 18px;
+        box-shadow: var(--shadow);
+        padding: 28px;
+        position: relative;
+        overflow: hidden;
+        animation: page-in 420ms ease-out;
+      }
+
+      .app::before,
+      .app::after {
+        content: '';
+        position: absolute;
+        border-radius: 999px;
+        filter: blur(0px);
+        opacity: 0.12;
+        pointer-events: none;
+      }
+
+      .app::before {
+        width: 260px;
+        height: 260px;
+        background: var(--accent);
+        top: -120px;
+        right: -90px;
+      }
+
+      .app::after {
+        width: 220px;
+        height: 220px;
+        background: var(--accent-2);
+        bottom: -110px;
+        left: -80px;
+      }
+
+      .app-header {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 16px;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 20px;
+        position: relative;
+        z-index: 1;
+      }
+
+      .title-group h1 {
+        font-family: var(--font-title);
+        font-size: 28px;
+        letter-spacing: 0.5px;
+        margin: 0 0 6px 0;
+      }
+
+      .title-group p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 14px;
+      }
+
+      .header-actions {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+      }
+
+      .theme-select {
+        border: 1px solid var(--border);
+        background: var(--input-bg);
+        color: var(--ink);
+        padding: 9px 12px;
+        border-radius: 999px;
+        font-size: 13px;
+        cursor: pointer;
+      }
+
+      .clear-btn {
+        border: 1px solid var(--border);
+        background: #fff7f2;
+        color: #8d4b2d;
+        padding: 9px 14px;
+        border-radius: 999px;
+        font-size: 13px;
+        cursor: pointer;
+        transition: transform 120ms ease, box-shadow 120ms ease;
+      }
+
+      .clear-btn:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 6px 14px rgba(141, 75, 45, 0.15);
+      }
+
+      .chat-panel {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        padding: 16px;
+        box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.4);
+        position: relative;
+        z-index: 1;
+      }
+
+      .terminal-bar {
+        display: none;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 10px;
+        border-radius: 10px;
+        margin: -6px -6px 12px -6px;
+        background: rgba(0, 0, 0, 0.08);
+      }
+
+      .terminal-dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        display: inline-block;
+      }
+
+      .terminal-title {
+        margin-left: 8px;
+        font-size: 12px;
+        color: var(--muted);
+        letter-spacing: 0.3px;
+      }
+
+      #chat-box {
+        height: 360px;
+        overflow-y: auto;
+        padding-right: 6px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+
+      #chat-box::-webkit-scrollbar {
+        width: 8px;
+      }
+      #chat-box::-webkit-scrollbar-thumb {
+        background: #d5caba;
+        border-radius: 999px;
+      }
+
+      .msg {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        animation: msg-in 240ms ease-out;
+      }
+
+      .bubble {
+        background: var(--bubble-bg);
+        border: 1px solid var(--bubble-border);
+        border-radius: 12px;
+        padding: 10px 12px;
+        display: inline-flex;
+        flex-wrap: wrap;
+        align-items: baseline;
+        gap: 6px;
+        max-width: 100%;
+      }
+
+      .msg .user {
+        font-weight: 600;
+        color: var(--accent);
+      }
+
+      .msg .text {
+        color: var(--ink);
+      }
+
+      .msg .time {
+        color: var(--muted);
+        font-size: 12px;
+        margin-left: 6px;
+      }
+
+      .composer {
+        margin-top: 18px;
+        display: grid;
+        grid-template-columns: 160px 1fr auto;
+        gap: 12px;
+        align-items: end;
+        position: relative;
+        z-index: 1;
+      }
+
+      .field {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+
+      .field label {
+        font-size: 12px;
+        color: var(--muted);
+        letter-spacing: 0.4px;
+      }
+
+      input[type='text'] {
+        border: 1px solid var(--border);
+        background: var(--input-bg);
+        color: var(--input-text);
+        padding: 10px 12px;
+        border-radius: 10px;
+        font-size: 14px;
+        transition: border-color 150ms ease, box-shadow 150ms ease;
+      }
+
+      input[type='text']:focus {
+        outline: none;
+        border-color: var(--accent);
+        box-shadow: 0 0 0 3px rgba(47, 93, 98, 0.15);
+      }
+
+      .send-btn {
+        border: none;
+        background: linear-gradient(135deg, var(--accent), #1f4d50);
+        color: #fff;
+        padding: 12px 18px;
+        border-radius: 12px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: transform 120ms ease, box-shadow 120ms ease;
+        box-shadow: 0 8px 18px rgba(47, 93, 98, 0.25);
+      }
+
+      .send-btn:hover {
+        transform: translateY(-1px);
+      }
+
+      .hint {
+        margin-top: 10px;
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      @keyframes page-in {
+        from {
+          opacity: 0;
+          transform: translateY(10px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      @keyframes msg-in {
+        from {
+          opacity: 0;
+          transform: translateY(4px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      @media (max-width: 720px) {
+        .app {
+          padding: 20px;
+        }
+
+        .composer {
+          grid-template-columns: 1fr;
+        }
+
+        #chat-box {
+          height: 300px;
+        }
+
+        .send-btn {
+          width: 100%;
+        }
+      }
+
+      body.theme-cmd {
+        --bg-1: #0f1114;
+        --bg-2: #0a0c0f;
+        --ink: #d6ffd6;
+        --muted: #86a986;
+        --card: #0f1317;
+        --accent: #8fe18f;
+        --accent-2: #3a7a3a;
+        --border: #263026;
+        --shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+        --font-title: 'SF Mono', 'SF Pro Text', 'SF Pro Display',
+          'JetBrains Mono', 'Menlo', 'Monaco', monospace;
+        --font-body: 'SF Mono', 'SF Pro Text', 'SF Pro Display',
+          'JetBrains Mono', 'Menlo', 'Monaco', monospace;
+        --bubble-bg: #101a12;
+        --bubble-border: #253825;
+        --input-bg: #0c1310;
+        --input-text: #caffca;
+      }
+
+      body.theme-cmd {
+        background: radial-gradient(
+            900px 400px at 70% -10%,
+            rgba(120, 255, 170, 0.07),
+            transparent 60%
+          ),
+          linear-gradient(135deg, #0a0e12 0%, #141b21 100%);
+      }
+
+      body.theme-cmd .app {
+        background: rgba(12, 16, 20, 0.85);
+        border-color: #263026;
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+      }
+
+      body.theme-cmd .app::before,
+      body.theme-cmd .app::after {
+        opacity: 0.35;
+      }
+
+      body.theme-cmd .send-btn {
+        background: linear-gradient(135deg, #1b7a1b, #0e4f0e);
+        box-shadow: 0 8px 18px rgba(10, 60, 10, 0.45);
+      }
+
+      body.theme-cmd .clear-btn {
+        background: #0e1412;
+        color: #b7eab7;
+        border-color: #203220;
+      }
+
+      body.theme-cmd .chat-panel {
+        border-color: #222b24;
+        box-shadow: inset 0 0 0 1px rgba(80, 140, 100, 0.18);
+      }
+
+      body.theme-cmd .bubble {
+        box-shadow: 0 0 12px rgba(80, 220, 120, 0.1);
+      }
+
+      body.theme-cmd .app::after {
+        filter: blur(0px);
+      }
+
+      body.theme-cmd::before {
+        content: '';
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+        background: repeating-linear-gradient(
+          to bottom,
+          rgba(0, 0, 0, 0.18),
+          rgba(0, 0, 0, 0.18) 1px,
+          transparent 1px,
+          transparent 3px
+        );
+        mix-blend-mode: multiply;
+        opacity: 0.35;
+      }
+
+      body.theme-cmd .hint {
+        color: #7cc67c;
+      }
+
+      body.theme-cmd input[type='text']::placeholder {
+        color: #5f8f5f;
+      }
+
+      body.theme-cmd .terminal-bar {
+        display: flex;
+        background: rgba(20, 24, 28, 0.88);
+        border: 1px solid #20262b;
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+      }
+
+      body.theme-cmd .terminal-title {
+        color: #9fb09f;
+      }
+
+      body.theme-cmd .terminal-dot.red {
+        background: #ff5f56;
+        box-shadow: 0 0 6px rgba(255, 95, 86, 0.6);
+      }
+      body.theme-cmd .terminal-dot.yellow {
+        background: #ffbd2e;
+        box-shadow: 0 0 6px rgba(255, 189, 46, 0.5);
+      }
+      body.theme-cmd .terminal-dot.green {
+        background: #27c93f;
+        box-shadow: 0 0 6px rgba(39, 201, 63, 0.5);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="app">
+      <header class="app-header">
+        <div class="title-group">
+          <h1>簡易 SSE 聊天室</h1>
+          <p>即時推送 · 低延遲 · 小而穩定</p>
+        </div>
+        <div class="header-actions">
+          <select id="theme-select" class="theme-select">
+            <option value="light">柔和主題</option>
+            <option value="cmd">CMD 主題</option>
+          </select>
+          <button id="clear-chat-btn" class="clear-btn">清空對話</button>
+        </div>
+      </header>
+
+      <section class="chat-panel">
+        <div class="terminal-bar">
+          <span class="terminal-dot red"></span>
+          <span class="terminal-dot yellow"></span>
+          <span class="terminal-dot green"></span>
+          <span class="terminal-title">Terminal — session.log</span>
+        </div>
+        <div id="chat-box"></div>
+      </section>
+
+      <section class="composer">
+        <div class="field">
+          <label for="username">暱稱</label>
+          <input type="text" id="username" placeholder="你的名字" />
+        </div>
+        <div class="field message-field">
+          <label for="message">訊息</label>
+          <input type="text" id="message" placeholder="輸入訊息..." />
+        </div>
+        <button id="send-btn" class="send-btn">送出</button>
+      </section>
+      <div class="hint">按 Enter 送出訊息</div>
+    </div>
+
+    <script>
+      $(function () {
+        const API_BASE =
+          (window.APP_CONFIG && window.APP_CONFIG.API_BASE) ||
+          'http://localhost:8080/chat_sse_demo';
+
+        (function initTheme() {
+          const $select = $('#theme-select');
+          const saved = localStorage.getItem('chat_theme') || 'light';
+          applyTheme(saved);
+          $select.val(saved);
+          $select.on('change', function () {
+            const value = $(this).val();
+            applyTheme(value);
+            localStorage.setItem('chat_theme', value);
+          });
+        })();
+
+        (function initUsername() {
+          const $username = $('#username');
+          if ($username.val().trim()) return;
+          const rand = Math.floor(Math.random() * 900) + 100;
+          $username.val(`User${rand}`);
+        })();
+
+        // ====== 1. 送出訊息（用 jQuery AJAX） ======
+        let isSending = false;
+
+        $('#send-btn').on('click', sendMessage);
+        $('#message').on('keydown', function (e) {
+          if (e.key === 'Enter') {
+            sendMessage();
+          }
+        });
+
+        function sendMessage() {
+          if (isSending) return;
+          const user = $('#username').val().trim();
+          const msg = $('#message').val().trim();
+
+          if (!user) {
+            alert('請輸入暱稱');
+            return;
+          }
+          if (!msg) return;
+
+          setSendingState(true);
+          $.ajax({
+            url: `${API_BASE}/send.php`,
+            method: 'POST',
+            data: { user: user, message: msg },
+            success: function (res) {
+              $('#message').val('');
+            },
+            error: function () {
+              alert('送出失敗，請稍後再試');
+            },
+            complete: function () {
+              setSendingState(false);
+            },
+          });
+        }
+
+        function setSendingState(state) {
+          isSending = state;
+          $('#send-btn')
+            .prop('disabled', state)
+            .text(state ? '送出中...' : '送出');
+          $('#message').prop('disabled', state);
+        }
+
+        function applyTheme(theme) {
+          if (theme === 'cmd') {
+            $('body').addClass('theme-cmd');
+          } else {
+            $('body').removeClass('theme-cmd');
+          }
+        }
+
+        // ====== 2. 接收訊息（用原生 EventSource + SSE） ======
+        if (!!window.EventSource) {
+          const source = new EventSource(`${API_BASE}/stream.php`);
+
+          source.onmessage = function (event) {
+            // event.data 是後端推來的 JSON 字串
+            try {
+              const msg = JSON.parse(event.data);
+              appendMessage(msg);
+            } catch (e) {
+              console.error('解析訊息失敗', e, event.data);
+            }
+          };
+
+          source.onerror = function (err) {
+            console.error('SSE 連線錯誤：', err);
+            // 這邊先不關閉，讓瀏覽器自動重連
+          };
+        } else {
+          alert('你的瀏覽器不支援 EventSource / SSE');
+        }
+
+        function appendMessage(msg) {
+          const $box = $('#chat-box');
+          const safeUser = $('<span>').text(msg.user).html();
+          const safeText = $('<span>').text(msg.message).html();
+          const safeTime = $('<span>')
+            .text(msg.created_at || '')
+            .html();
+
+          const html = `
+            <div class="msg">
+              <div class="bubble">
+                <span class="user">${safeUser}</span>
+                <span class="text">${safeText}</span>
+              </div>
+              <span class="time">${safeTime}</span>
+            </div>
+          `;
+          $box.append(html);
+          $box.scrollTop($box[0].scrollHeight);
+        }
+
+        $('#clear-chat-btn').on('click', function () {
+          if (!confirm('確定要清空所有訊息嗎？')) return;
+
+          $('#clear-chat-btn').prop('disabled', true).text('清空中...');
+          $.ajax({
+            url: `${API_BASE}/clear.php`,
+            method: 'POST',
+            dataType: 'json',
+            success: function (res) {
+              if (res && res.ok) {
+                $('#chat-box').empty();
+              } else {
+                alert('清空失敗，請稍後再試');
+              }
+            },
+            error: function () {
+              alert('清空失敗，請稍後再試');
+            },
+            complete: function () {
+              $('#clear-chat-btn').prop('disabled', false).text('清空對話');
+            },
+          });
+        });
+      });
+    </script>
+  </body>
+</html>
